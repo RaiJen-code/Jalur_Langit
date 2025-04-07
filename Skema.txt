@@ -1,1 +1,10 @@
-
+Pipeline data untuk alat ADW310-4G mennggunakan pendekatan big data
+Secara teknis flow alurnya sebagai berikut:
+1. Sensor mengirimkan data ke microcontroller (esp32) untuk mendapat data lingkungan
+2. esp32 juga di hubungkan tx rx dengan ADW310-4G untuk mendapat data pengukuran dalam aspek kelistrikan
+3. esp32 lewat mqtt mengirimkan datanya ke broker (saya menggunakan emqx)
+4. dari broker baru minning data dengan kafka producer dan consummer, 
+5. data yang masuk di konvert ke apache spark untuk di transformasikan ke database dan membuat checkpoint
+6. data diteruskan dengan mysql dan disimpan di server local
+7. semua environtment sistem berjalan di docker
+8. data yang masuk dan disimpan ditampilkan dengan laravel frontend
