@@ -1,0 +1,36 @@
+FROM bitnami/spark:3
+
+USER root
+
+# Download MySQL Connector
+ADD https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.28/mysql-connector-java-8.0.28.jar /opt/spark/jars/
+
+# Install Python dependencies
+COPY requirements.txt /app/
+RUN apt-get update && \
+    apt-get install -y python3-pip && \
+    pip3 install --no-cache-dir -r /app/requirements.txt
+
+# Pre-download Spark dependencies
+RUN mkdir -p /opt/spark-deps && \
+    cd /opt/spark-deps && \
+    /opt/bitnami/spark/bin/spark-submit --packages "org.apache.spark:spark-sql-kafka-0-10_2.12:3.2.0,org.apache.spark:spark-avro_2.12:3.2.0,mysql:mysql-connector-java:8.0.28" --class org.apache.spark.repl.Main spark-shell
+
+# Create checkpoint directory
+RUN mkdir -p /opt/spark/checkpoints && \
+    chmod 777 /opt/spark/checkpoints
+
+# Set environment variables
+ENV PYTHONPATH="${PYTHONPATH}:/app"
+ENV SPARK_MASTER_URL="spark://spark-master:7077"
+
+WORKDIR /app
+
+# Run as non-root user
+USER 1001
+
+CMD ["spark-submit", \
+     "--master", "spark://spark-master:7077", \
+     "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.2.0,org.apache.spark:spark-avro_2.12:3.2.0,mysql:mysql-connector-java:8.0.28", \
+     "--conf", "spark.sql.streaming.checkpointLocation=/opt/spark/checkpoints", \
+     "src/spark_processor.py"]

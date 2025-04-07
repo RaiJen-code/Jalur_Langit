@@ -1,0 +1,45 @@
+1. docker-compose up
+Menjalankan container di foreground (mode attached)
+Menampilkan log secara langsung di terminal
+Jika Anda menutup terminal atau menekan Ctrl+C, container akan berhenti
+Berguna saat development/debugging karena Anda bisa melihat log secara real-time
+2. docker-compose up -d
+-d artinya "detached mode" (berjalan di background)
+Container berjalan di background tanpa menampilkan log
+Container tetap berjalan meski Anda menutup terminal
+Lebih cocok untuk production atau ketika Anda ingin container tetap berjalan di background
+3. docker-compose down (menghentikan semua contaoner yang ada dalam docker)
+4. docker ps (untuk melihat container apa saja yang sedang berjalan)
+5. kalau mau berhentiin container spsifik
+docker stop spark
+docker stop kafka
+docker stop zookeeper
+6. ctrl + c (stoppped)
+7. docker kill [nama_container] (Jika masih ada container yang "stuck", Anda bisa memaksa menghentikannya)
+8. docker system prune (Untuk membersihkan semua resource yang tidak digunakan)
+
+Energi Reaktif 1-fase
+Daya Reaktif Aktif
+Arus
+Tegangan
+Frekuensi
+Faktor Daya
+Daya Semu
+Temperature
+Kelembapan
+
+kafka-topics.sh --list --bootstrap-server localhost:9092
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic monitoring_adw310_frekuensi --timeout-ms 10000 --partition 0 --offset latest
+
+Prometheus UI: http://localhost:9090
+Grafana UI: http://localhost:3001 (login: admin/admin_password)
+
+http://localhost:8000
+http://localhost:8081
+docker-compose exec db mysql -u monitoring_user -pmonitoring_pass monitoring_db
+SELECT * FROM sensors ORDER BY id DESC LIMIT 5;
+
+docker-compose exec spark-processor bash -c "rm -rf /opt/spark/checkpoints/*"
+rm -rf ./spark-checkpoints/*
+
+docker-compose exec db mysql -u monitoring_user -pmonitoring_pass monitoring_db -e "SELECT * FROM sensors ORDER BY created_at DESC LIMIT 5;"

@@ -1,0 +1,199 @@
+version: '3'  
+
+services:
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    volumes:
+      - zookeeper_data:/bitnami/zookeeper
+    networks:
+      - data-pipeline-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  kafka:
+    image: bitnami/kafka:latest
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+  ##    - "7071:7071"  # Port untuk JMX Exporter
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=INTERNAL://:9092,EXTERNAL://:29092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://${EXTERNAL_IP:-localhost}:29092
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL
+  ##    - KAFKA_OPTS=-javaagent:/usr/local/share/kafka/jmx_prometheus_javaagent.jar=7071:/usr/local/share/kafka/kafka-jmx-exporter.yml
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    volumes:
+      - kafka_data:/bitnami/kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    networks:
+      - data-pipeline-network
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--list", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  spark-master:
+    image: bitnami/spark:3
+    ports:
+      - "8081:8080"
+      - "7077:7077"
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - spark_data:/bitnami/spark
+      - ./spark-checkpoints:/opt/spark/checkpoints
+    networks:
+      - data-pipeline-network
+
+  spark-worker:
+    image: bitnami/spark:3
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=4G          # Tingkatkan memory
+      - SPARK_WORKER_CORES=2            # Tingkatkan cores
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    depends_on:
+      - spark-master
+    networks:
+      - data-pipeline-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  spark-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_DRIVER_MEMORY=2g
+      - SPARK_EXECUTOR_MEMORY=2g
+      - SPARK_EXECUTOR_CORES=2
+      # Tambah environment untuk database
+      - DB_HOST=db
+      - DB_PORT=3307
+      - DB_DATABASE=monitoring_db
+      - DB_USERNAME=monitoring_user
+      - DB_PASSWORD=monitoring_pass
+      - TZ=Asia/Jakarta
+    volumes:
+      - ./spark-checkpoints:/opt/spark/checkpoints
+      - ./src:/app/src
+      - ./mysql-connector-java-8.0.28.jar:/opt/spark/jars/mysql-connector-java-8.0.28.jar
+    depends_on:
+      - spark-master
+      - kafka
+      - db   # Tambah dependensi ke database
+    networks:
+      - data-pipeline-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - data-pipeline-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin_password
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - data-pipeline-network
+
+  mqtt-kafka-producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - MQTT_BROKER=ddeede1a.ala.eu-central-1.emqxsl.com
+      - MQTT_PORT=8883
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - data-pipeline-network
+
+  laravel-app:
+    build:
+      context: ./laravel-monitoring
+      dockerfile: Dockerfile
+    ports:
+      - "8000:80"
+    volumes:
+      - ./laravel-monitoring:/var/www/html
+    environment:
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=monitoring_db
+      - DB_USERNAME=monitoring_user
+      - DB_PASSWORD=monitoring_pass
+    depends_on:
+      - db
+    networks:
+      - data-pipeline-network
+
+  db:
+    image: mysql:8.0
+    command: --default-time-zone='+07:00' 
+    ports:
+      - "3307:3306"
+    environment:
+      - MYSQL_DATABASE=monitoring_db
+      - MYSQL_USER=monitoring_user
+      - MYSQL_PASSWORD=monitoring_pass
+      - MYSQL_ROOT_PASSWORD=root_password
+      - TZ=Asia/Jakarta
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - data-pipeline-network
+
+volumes:
+  zookeeper_data:
+  kafka_data:
+  spark_data:
+  spark_worker_data:
+  prometheus_data:
+  grafana_data:
+  mysql_data:
+
+networks:
+  data-pipeline-network:
+    driver: bridge

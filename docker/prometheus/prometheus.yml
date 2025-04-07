@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:7071']
+    metrics_path: '/metrics'
+    
+  - job_name: 'spark-master'
+    metrics_path: '/metrics/prometheus'
+    static_configs:
+      - targets: ['spark-master:8080']
+    scrape_interval: 5s
+
+  - job_name: 'spark-worker'
+    metrics_path: '/metrics/prometheus'
+    static_configs:
+      - targets: ['spark-worker:8081']
+      
+  - job_name: 'zookeeper'
+    static_configs:
+      - targets: ['zookeeper:2181']
+
+  - job_name: 'mqtt-kafka-producer'
+    static_configs:
+      - targets: ['mqtt-kafka-producer:9091']  # Jika Anda menambahkan metrics endpoint ke producer

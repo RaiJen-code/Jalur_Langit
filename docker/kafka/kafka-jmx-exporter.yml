@@ -1,0 +1,18 @@
+lowercaseOutputName: true
+rules:
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Value
+    name: kafka_$1_$2_$3
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Count
+    name: kafka_$1_$2_$3_count
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>(\d+)thPercentile
+    name: kafka_$1_$2_$3
+    labels:
+      quantile: "0.$4"
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Mean
+    name: kafka_$1_$2_$3_mean
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Max
+    name: kafka_$1_$2_$3_max
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Min
+    name: kafka_$1_$2_$3_min
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>StdDev
+    name: kafka_$1_$2_$3_stddev
